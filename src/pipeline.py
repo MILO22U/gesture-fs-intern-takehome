@@ -13,6 +13,7 @@ Useful docs:
 """
 
 import os
+import argparse
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from src.knowledge_base import build_knowledge_base
 
@@ -58,8 +59,7 @@ Answer:"""
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TODO 1: Implement ask_question
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def ask_question(vector_store, llm, question: str) -> dict:
-    """Retrieve relevant chunks and generate an answer.
+"""Retrieve relevant chunks and generate an answer.
 
     Steps:
       1. Use vector_store.similarity_search(question, k=3) to get
@@ -79,15 +79,50 @@ def ask_question(vector_store, llm, question: str) -> dict:
         dict with two keys:
             "answer"  -> str: the generated answer
             "sources" -> list[str]: the chunk texts that were retrieved
-    """
-    # TODO: implement this (~6-8 lines)
-    raise NotImplementedError("TODO 1: Implement ask_question")
+"""
+
+def ask_question(vector_store, llm, question: str) -> dict:
+    """Retrieve relevant chunks and generate an answer."""
+    
+    # Check for empty question
+    if not question.strip():
+        return {
+            "answer": "Please enter a question.",
+            "sources": []
+        }
+    
+    # Retrieve top 3 relevant document chunks
+    documentChunks = vector_store.similarity_search(question, k=3)
+    
+    # Get text from every document chunk
+    sources = []
+    for chunk in documentChunks:
+        sources.append(chunk.page_content)
+    
+    # Combine all retrieved text
+    context = "\n\n".join(sources)
+    
+    # Create final prompt
+    formattedPrompt = PROMPT_TEMPLATE.format(
+        context=context,
+        question=question
+    )
+    
+    # Generate answer
+    result = llm(formattedPrompt)
+    answer = result[0]["generated_text"]
+    
+    return {
+        "answer": answer,
+        "sources": sources
+    }
+
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TODO 2: Complete the interactive loop
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def main():
+def main() -> None:
     """Interactive Q&A loop.
 
     Steps:
@@ -100,10 +135,58 @@ def main():
          - Calls ask_question() with their input
          - Prints the retrieved sources and the answer
     """
-    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    # Command line argument
+    parser = argparse.ArgumentParser(description="Document Q&A Pipeline")
+    parser.add_argument("--query", type=str, help="Ask a single question")
+    args = parser.parse_args()
 
-    # TODO: implement this (~10-12 lines)
-    raise NotImplementedError("TODO 2: Complete the interactive loop")
+    
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    # Check if data directory exists
+    if not os.path.isdir(data_dir): #in case the data directory is not found, print an error message and return
+        print("Error: data directory not found.")
+        return
+    
+    # Build knowledge base
+    vectorStore = build_knowledge_base(data_dir)
+    
+    # Load local LLM
+    llm = get_llm()
+    
+    # Single question mode
+    if args.query is not None:
+        result = ask_question(vectorStore, llm, args.query)
+
+        print("\nRetrieved Sources:")
+        for source in result["sources"]:
+            print("\n", source)
+
+        print("\nAnswer:")
+        print(result["answer"])
+        return
+    
+    # Start question answer loop
+    while True:
+        question = input("\nEnter your question or type quit to exit: ")
+
+        if question.lower() == "quit":
+            print("\nExiting Q&A system.")
+            break
+        
+        if not question.strip():
+            print("\nPlease enter a question.")
+            continue
+
+        result = ask_question(vectorStore, llm, question)
+        
+        # Print retrieved sources
+        print("\nRetrieved Sources:")
+        for source in result["sources"]:
+            print("\n", source)
+
+        # Print generated answer
+        print("\nAnswer:")
+        print(result["answer"])
 
 
 if __name__ == "__main__":

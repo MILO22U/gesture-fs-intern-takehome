@@ -95,3 +95,28 @@ class TestAnswerGeneration:
         assert "2,500" in answer or "2500" in answer or "starter" in answer, (
             "Answer should address the pricing question"
         )
+class TestBonusCases:
+
+    def test_empty_question(self, vector_store, llm):
+        result = ask_question(vector_store, llm, "")
+
+        assert result["answer"] == "Please enter a question."
+        assert result["sources"] == []
+
+
+    def test_whitespace_question(self, vector_store, llm):
+        result = ask_question(vector_store, llm, "     ")
+
+        assert result["answer"] == "Please enter a question."
+        assert result["sources"] == []
+
+
+    def test_sources_are_strings(self, vector_store, llm):
+        result = ask_question(
+            vector_store,
+            llm,
+            "What services do you offer?"
+        )
+
+        for source in result["sources"]:
+            assert isinstance(source, str)
